@@ -1,0 +1,21 @@
+Package: qpcr
+Title: Tools for qPCR analysis. 
+Version: 0.1.0
+Authors@R: c(
+    person("Santtu", "Tikka", email = "santtuth@gmail.com", 
+           role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4039-4342")),
+    person("Aigi", "Margus", 
+           role = "aut", comment = c(ORCID = "0000-0002-2546-8238"))
+  )
+Description: Supports NORMA-Gene normalization by Heckmann et al. 
+  <doi:10.1186/1471-2105-12-250>
+License: GPL (>= 3)
+Imports: 
+    data.table,
+    ggplot2
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3

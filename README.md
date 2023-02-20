@@ -1,2 +1,3 @@
 # qpcr
-An R package for qPCR analysis
+
+A WIP R package for qPCR analysis
