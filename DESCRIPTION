@@ -4,16 +4,24 @@ Version: 0.1.0
 Authors@R: c(
     person("Santtu", "Tikka", email = "santtuth@gmail.com", 
            role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4039-4342")),
-    person("Aigi", "Margus", 
+    person("Aigi", "Margus", email = "aigi.margus@jyu.fi"
            role = "aut", comment = c(ORCID = "0000-0002-2546-8238"))
   )
 Description: Supports NORMA-Gene normalization by Heckmann et al. 
   <doi:10.1186/1471-2105-12-250>
 License: GPL (>= 3)
-Imports: 
+URL: https://github.com/santikka/qpcr/
+BugReports: https://github.com/santikka/qpcr/issues/
+Imports:
+    checkmate,
+    cli,
     data.table,
-    ggplot2
+    ggplot2,
+    utils
 Suggests: 
+    covr,
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Encoding: UTF-8
