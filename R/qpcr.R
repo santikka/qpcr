@@ -18,42 +18,34 @@
 #'   `"wilcoxon"`, `"kw"`, and `"mw"` for the t-test, analysis of variance,
 #'   Wilcoxon signed rank test, Kruskal-Wallis H test, and Mann-Whitney U test,
 #'   respectively.
+#' @param genes \[`character()`]\cr An optional vector of column names of
+#'   `data` naming the genes that should be included in the analysis.
+#'   If `NULL`, it is assumed that all columns expect those named in
+#'   `treatment` and `ref_genes` arguments should be analyzed.
 #' @param ref_genes \[`character()`]\cr A vector of column names of `data`
 #'   which should be treated as reference genes when `nor == "reference"`.
 #'   This is argument is ignored for the `"normagene"` and `"none"`
 #'   normalization options.
-#' @param eff \[`data.frame`]\cr Efficiencies as a `data.frame` or
-#'   a named `list` for each gene when when `norm == "reference"`.
-#'   This is argument is ignored for the `"normagene"` and `"none"`
-#'   normalization options.
+#' @param eff \[`data.frame` or `list`]\cr Efficiencies when using the
+#'   reference gene normalization. Should be either a `data.frame` with a
+#'   column for each gene and a single row providing the efficiency values.
+#'   Alternatively, a named `list` or a `vector` giving the efficiency values
+#'   can be provided.
+#' @param m \[`integer(1)`]\cr Number of replications to use for the
+#'   randomization test when using the method. The default is `10000`
 #' @examples
 #' # TODO examples
 #'
 qpcr <- function(data, treatment, norm = c("normagene", "reference", "none"),
                  methods = c("rand", "t", "anova", "wilcoxon", "kw", "mw"),
-                 ref_genes = NULL, eff = NULL) {
+                 genes = NULL, ref_genes = NULL, eff = NULL, m = 10000L) {
   stopifnot_(
     !missing(data),
     "Argument {.arg data} is missing."
   )
   stopifnot_(
-    is.data.frame(data),
-    "Argument {.arg data} must be a {.cls data.frame} object."
-  )
-  stopifnot_(
     !missing(treatment),
     "Argument {.arg treatment} is missing."
-  )
-  stopifnot_(
-    checkmate::test_string(x = treatment),
-    "Argument {.arg treatment} must be a single character string."
-  )
-  stopifnot_(
-    !is.null(data[[treatment]]),
-    c(
-      "Argument {.arg treatment} must be a column name of {.arg data}.",
-      `x` = "Column {.var {treatment}} does not exist in {.arg data}."
-    )
   )
   norm <- onlyif(is.character(norm), tolower(norm))
   norm <- try(
@@ -75,31 +67,41 @@ qpcr <- function(data, treatment, norm = c("normagene", "reference", "none"),
     "Argument {.arg methods} must contain one or more of the following:
     {.val rand}, {.val t}, {.val anova}, {.val wilcoxon}, {.val kw}, {.val mw}"
   )
-  data <- parse_data(data, treatment)
-  if (identical(norm, "normagene")) {
-    data <- normagene(data, treatment)
-  }
-  if (identical(norm, "reference")) {
-    stopifnot_(
-      !is.null(ref_genes) && checkmate::test_character(x = ref_genes),
-      "Argument {.arg ref_genes} must be a {.cls characte}r vector."
-    )
-    stopifnot_(
-      !is.null(eff) && is.list(eff),
-      "Argument {.arg eff} must be a {.cls list} or a {.cls data.frame}."
-    )
-    qpcr_reference(data, treatment, methods, ref_genes, eff)
-  } else {
-    qpcr_default(data, treatment, methods)
-  }
+  stopifnot_(
+    checkmate::test_int(x = m),
+    "Argument {.arg m} must be a single {.cls integer} value."
+  )
+  data <- parse_data(data, treatment, norm, genes)
+  ref_genes <- onlyif(identical(norm, "reference"), ref_genes)
+  eff <- onlyif(identical(norm, "reference"), unlist(eff))
+  parse_efficiency(data, treatment, norm, ref_genes, eff)
+  qpcr_(data, treatment, norm, methods, ref_genes, eff, m)
 }
 
-#' qPCR Analysis Using Reference Genes
-
-#' qPCR Analysis Without Reference Genes
+#' qPCR Analysis
 #'
 #' @inheritParams qpcr
 #' @noRd
-qpcr_default <- function(data, treatment, methods) {
-  # TODO
+qpcr_ <- function(data, treatment, norm, methods, ref_genes, eff) {
+  if ("rand" %in% methods) {
+    do.call(
+      what = paste0("randomization_test_", norm),
+      args = list(
+        data = data,
+        treatment = treatment,
+        ref_genes = ref_genes,
+        eff = eff,
+        m = m
+      )
+    )
+  }
+  data <- do.call(
+    what = paste0("normalize_", norm),
+    args = list(
+      data = data,
+      treatment = treatment,
+      ref_genes = ref_genes,
+      eff = eff
+    )
+  )
 }
