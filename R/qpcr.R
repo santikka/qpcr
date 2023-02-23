@@ -1,5 +1,6 @@
 #' qPCR Analysis
 #'
+#' @export
 #' @param data \[`data.frame` or `data.table`]\cr Data containing the
 #'   Ct values and the treatment assignment. Should have one column per gene.
 #' @param treatment \[`character(1)`]\cr Column name of `data` naming the
@@ -11,13 +12,19 @@
 #'   be defined in the argument `ref_genes` along with the efficiencies in
 #'   the argument `eff`.  Option `"none"` uses the data as is without applying
 #'   any normalization.
-#' @param methods \[`character()`]\cR A vector describing the names of the
-#'   statistical methods to apply to the data. The default option `"rand"`
-#'   applies a randomization test to the data for each gene and treatment
-#'   level pair. Other possible options to include are `"t"`, `"anova"`,
-#'   `"wilcoxon"`, `"kw"`, and `"mw"` for the t-test, analysis of variance,
-#'   Wilcoxon signed rank test, Kruskal-Wallis H test, and Mann-Whitney U test,
-#'   respectively.
+#' @param methods \[`character()`]\cr A vector describing the names of the
+#'   statistical methods to apply to the data. Pairwise comparisons between
+#'   each treatment group for each gene can be carried out via options
+#'   `"randomization_test"`, `"t_test"`, and `"wilcoxon_test"`, which apply a
+#'   randomization test, student t-test and the wilcoxon rank-sum test,
+#'   respectively. See the package vignette for more information on the
+#'   randomization test. See [stats::t.test], and [stats::wilcox.test] for more
+#'   information on the other tests. Comparisons between multiple treatment
+#'   groups can be carried out via options `anova` and `kruskal_test`,
+#'   which apply the analysis of variance and the Kruskal-Wallis
+#'   rank sum test to the data, respectively. See [stats::kruskal.test] for
+#'   more information on the test. By default, only the randomization test
+#'   is applied.
 #' @param genes \[`character()`]\cr An optional vector of column names of
 #'   `data` naming the genes that should be included in the analysis.
 #'   If `NULL`, it is assumed that all columns expect those named in
@@ -32,13 +39,19 @@
 #'   Alternatively, a named `list` or a `vector` giving the efficiency values
 #'   can be provided.
 #' @param m \[`integer(1)`]\cr Number of replications to use for the
-#'   randomization test when using the method. The default is `10000`
+#'   randomization test. The default is `10000` replications.
+#' @param alpha \[`numeric(1)`]\cr Confidence level to use for the
+#'   confidence intervals (CI). The default is `0.95` for 95% CIs.
 #' @examples
 #' # TODO examples
 #'
 qpcr <- function(data, treatment, norm = c("normagene", "reference", "none"),
-                 methods = c("rand", "t", "anova", "wilcoxon", "kw", "mw"),
-                 genes = NULL, ref_genes = NULL, eff = NULL, m = 10000L) {
+                 methods = c(
+                   "randomization_test", "t_test", "wilcoxon_test",
+                   "anova", "lm", "kruskal_test"
+                  ),
+                 genes = NULL, ref_genes = NULL, eff = NULL,
+                 m = 10000L, alpha = 0.95) {
   stopifnot_(
     !missing(data),
     "Argument {.arg data} is missing."
@@ -68,40 +81,33 @@ qpcr <- function(data, treatment, norm = c("normagene", "reference", "none"),
     {.val rand}, {.val t}, {.val anova}, {.val wilcoxon}, {.val kw}, {.val mw}"
   )
   stopifnot_(
-    checkmate::test_int(x = m),
-    "Argument {.arg m} must be a single {.cls integer} value."
+    checkmate::test_int(x = m, lower = 1L),
+    "Argument {.arg m} must be a single positive {.cls integer} value."
   )
-  data <- parse_data(data, treatment, norm, genes)
+  stopifnot_(
+    checkmate::test_double(x, lower = 0.0, upper = 1.0),
+    "Argument {.arg alpha} must be a single
+     {.cls numeric} value between 0 and 1."
+  )
   ref_genes <- onlyif(identical(norm, "reference"), ref_genes)
   eff <- onlyif(identical(norm, "reference"), unlist(eff))
-  parse_efficiency(data, treatment, norm, ref_genes, eff)
-  qpcr_(data, treatment, norm, methods, ref_genes, eff, m)
+  data <- parse_data(data, treatment, norm, genes, ref_genes, eff)
+  qpcr_(data, treatment, norm, methods, ref_genes, m, alpha)
 }
 
 #' qPCR Analysis
 #'
 #' @inheritParams qpcr
 #' @noRd
-qpcr_ <- function(data, treatment, norm, methods, ref_genes, eff) {
-  if ("rand" %in% methods) {
-    do.call(
-      what = paste0("randomization_test_", norm),
-      args = list(
-        data = data,
-        treatment = treatment,
-        ref_genes = ref_genes,
-        eff = eff,
-        m = m
-      )
-    )
+qpcr_ <- function(data, treatment, norm, methods, ref_genes, m, alpha) {
+  local <- NULL
+  global <- NULL
+  args <- as.list(match.call()[-1L])
+  if (any(local_methods  %in% methods)) {
+    local <- do.call("local_tests", args)
   }
-  data <- do.call(
-    what = paste0("normalize_", norm),
-    args = list(
-      data = data,
-      treatment = treatment,
-      ref_genes = ref_genes,
-      eff = eff
-    )
-  )
+  if (any(global_methods %in% methods)) {
+    global <- do.call("global_tests", args)
+  }
+
 }

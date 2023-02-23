@@ -10,11 +10,6 @@
 #' @docType package
 #' @name qpcr-package
 #' @importFrom data.table :=
-#' @importFrom loo loo
+#' @importFrom stats lm t.test wilcox.test kruskal.test quantile
 NULL
 
-# Data table awareness
-.datatable.aware <- TRUE
-
-# For data.table and tidyselect
-utils::globalVariables(c(".", ".I", ".N", ".SD", "where"))

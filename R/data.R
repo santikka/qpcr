@@ -2,7 +2,7 @@
 #'
 #' @inheritParams qpcr
 #' @noRd
-parse_data <- function(data, treatment, norm, genes, ref_genes) {
+parse_data <- function(data, treatment, norm, genes, ref_genes, eff) {
   stopifnot_(
     is.data.frame(data),
     "Argument {.arg data} must be a {.cls data.frame} object."
@@ -95,6 +95,10 @@ parse_data <- function(data, treatment, norm, genes, ref_genes) {
     "Non-finite or missing values were found in variable{?s}
      {.var {cols[!finite_cols]}} of {.arg data}."
   )
+  if (identical(norm, "normagene")) {
+    data <- normagene(data, treatment)
+  }
+  parse_efficiency(data, treatment, norm, ref_genes, eff)
 }
 
 #' Parse Efficiency Values For Analysis
@@ -103,7 +107,7 @@ parse_data <- function(data, treatment, norm, genes, ref_genes) {
 #' @noRd
 parse_efficiency <- function(data, treatment, norm, ref_genes, eff) {
   if (!identical(norm, "reference")) {
-    return()
+    return(data)
   }
   stopifnot_(
     !is.null(eff) && is.list(eff),
@@ -125,4 +129,13 @@ parse_efficiency <- function(data, treatment, norm, ref_genes, eff) {
             argument {.arg eff}."
     )
   )
+  stopifnot_(
+    all(eff > 0.0),
+    c(
+      "Primer efficiency values must be greater than 0.",
+      `x` = "Nonpositive efficiency value{?s} {?was/were} found
+             for gene{?s} {.val {gene_cols[eff <= 0.0]}}"
+    )
+  )
+  data[, .SD * log(eff)[col(.SD)], by = treatment]
 }
