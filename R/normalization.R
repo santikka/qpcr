@@ -1,8 +1,8 @@
-normagene <- function(x, treatment) {
-  out <- x[, log(.SD), by = treatment][,
+normagene <- function(x, group) {
+  out <- x[, log(.SD), by = group][,
     exp(
       rowMeans(colMeans(.SD, na.rm = TRUE)[col(.SD)] - .SD, na.rm = TRUE) +
         .SD
     ),
-    by = treatment]
+    by = group]
 }

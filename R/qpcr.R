@@ -2,9 +2,9 @@
 #'
 #' @export
 #' @param data \[`data.frame` or `data.table`]\cr Data containing the
-#'   Ct values and the treatment assignment. Should have one column per gene.
-#' @param treatment \[`character(1)`]\cr Column name of `data` naming the
-#'   column that defines the treatment group assignment.
+#'   Ct values and the group definitions. Should have one column per gene.
+#' @param group \[`character(1)`]\cr Column name of `data` that defines the
+#'   groups.
 #' @param norm \[`character(1)`]\cr Normalization method to use for the
 #'   analysis. Option `"normagene"` (the default) applies the NORMA-gene
 #'   normalization method of Heckmann et al. to the data. Option `"reference"`
@@ -14,23 +14,23 @@
 #'   any normalization.
 #' @param methods \[`character()`]\cr A vector describing the names of the
 #'   statistical methods to apply to the data. Pairwise comparisons between
-#'   each treatment group for each gene can be carried out via options
+#'   groups for each gene can be carried out via options
 #'   `"randomization_test"`, `"t_test"`, and `"wilcoxon_test"`, which apply a
 #'   randomization test, student t-test and the wilcoxon rank-sum test,
 #'   respectively. See the package vignette for more information on the
 #'   randomization test. See [stats::t.test], and [stats::wilcox.test] for more
-#'   information on the other tests. Comparisons between multiple treatment
+#'   information on the other tests. Comparisons between multiple
 #'   groups can be carried out via options `anova` and `kruskal_test`,
 #'   which apply the analysis of variance and the Kruskal-Wallis
 #'   rank sum test to the data, respectively. See [stats::kruskal.test] for
 #'   more information on the test. By default, only the randomization test
-#'   is applied.
+#'   is applied. If `NULL`, applies all methods.
 #' @param genes \[`character()`]\cr An optional vector of column names of
 #'   `data` naming the genes that should be included in the analysis.
 #'   If `NULL`, it is assumed that all columns expect those named in
-#'   `treatment` and `ref_genes` arguments should be analyzed.
+#'   `group` and `ref_genes` arguments should be analyzed.
 #' @param ref_genes \[`character()`]\cr A vector of column names of `data`
-#'   which should be treated as reference genes when `nor == "reference"`.
+#'   which should be treated as reference genes when `norm == "reference"`.
 #'   This is argument is ignored for the `"normagene"` and `"none"`
 #'   normalization options.
 #' @param eff \[`data.frame` or `list`]\cr Efficiencies when using the
@@ -45,10 +45,10 @@
 #' @examples
 #' # TODO examples
 #'
-qpcr <- function(data, treatment, norm = c("normagene", "reference", "none"),
+qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
                  methods = c(
                    "randomization_test", "t_test", "wilcoxon_test",
-                   "anova", "lm", "kruskal_test"
+                   "anova", "kruskal_test"
                   ),
                  genes = NULL, ref_genes = NULL, eff = NULL,
                  m = 10000L, alpha = 0.95) {
@@ -57,8 +57,8 @@ qpcr <- function(data, treatment, norm = c("normagene", "reference", "none"),
     "Argument {.arg data} is missing."
   )
   stopifnot_(
-    !missing(treatment),
-    "Argument {.arg treatment} is missing."
+    !missing(group),
+    "Argument {.arg group} is missing."
   )
   norm <- onlyif(is.character(norm), tolower(norm))
   norm <- try(
@@ -70,36 +70,42 @@ qpcr <- function(data, treatment, norm = c("normagene", "reference", "none"),
     "Argument {.arg norm} must be either
     {.val normagene}, {.val reference}, or {.val none}."
   )
+  all_methods <- c(local_methods, global_methods)
   methods <- onlyif(is.character(methods), tolower(methods))
+  methods <- ifelse_(
+    is.null(methods) || length(methods) == 0L,
+    all_methods,
+    methods
+  )
   methods <- try(
-    match.arg(methods, c("rand", "t", "anova", "wilcoxon", "kw", "mw"), TRUE),
+    match.arg(methods, all_methods, several.ok = TRUE),
     silent = TRUE
   )
   stopifnot_(
     !inherits(methods, "try-error"),
     "Argument {.arg methods} must contain one or more of the following:
-    {.val rand}, {.val t}, {.val anova}, {.val wilcoxon}, {.val kw}, {.val mw}"
+    {.val {all_methods}}"
   )
   stopifnot_(
     checkmate::test_int(x = m, lower = 1L),
     "Argument {.arg m} must be a single positive {.cls integer} value."
   )
   stopifnot_(
-    checkmate::test_double(x, lower = 0.0, upper = 1.0),
+    checkmate::test_double(x = alpha, lower = 0.0, upper = 1.0),
     "Argument {.arg alpha} must be a single
      {.cls numeric} value between 0 and 1."
   )
   ref_genes <- onlyif(identical(norm, "reference"), ref_genes)
   eff <- onlyif(identical(norm, "reference"), unlist(eff))
-  data <- parse_data(data, treatment, norm, genes, ref_genes, eff)
-  qpcr_(data, treatment, norm, methods, ref_genes, m, alpha)
+  data <- parse_data(data, group, norm, genes, ref_genes, eff)
+  qpcr_(data, group, norm, methods, ref_genes, m, alpha)
 }
 
 #' qPCR Analysis
 #'
 #' @inheritParams qpcr
 #' @noRd
-qpcr_ <- function(data, treatment, norm, methods, ref_genes, m, alpha) {
+qpcr_ <- function(data, group, norm, methods, ref_genes, m, alpha) {
   local <- NULL
   global <- NULL
   args <- as.list(match.call()[-1L])
@@ -109,5 +115,5 @@ qpcr_ <- function(data, treatment, norm, methods, ref_genes, m, alpha) {
   if (any(global_methods %in% methods)) {
     global <- do.call("global_tests", args)
   }
-
+  list(local = local, global = global)
 }

@@ -4,14 +4,6 @@
 # For data.table and tidyselect
 utils::globalVariables(c(".", ".I", ".N", ".SD", "where"))
 
-log_expression <- function(x, y) {
-  if (is.vector(x)) {
-    mean(x) - mean(y)
-  } else {
-    mean(colMeans(x) - colMeans(y))
-  }
-}
-
 #' Stop Function Execution Unless Condition Is True
 #'
 #' @inheritParams stop_
@@ -56,4 +48,4 @@ n_unique <- data.table::uniqueN
 
 local_methods <- c("randomization_test", "t_test", "wilcoxon_test")
 
-global_methods <- c("anova", "lm", "kruskal_test")
+global_methods <- c("anova", "kruskal_test")

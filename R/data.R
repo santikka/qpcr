@@ -2,27 +2,27 @@
 #'
 #' @inheritParams qpcr
 #' @noRd
-parse_data <- function(data, treatment, norm, genes, ref_genes, eff) {
+parse_data <- function(data, group, norm, genes, ref_genes, eff) {
   stopifnot_(
     is.data.frame(data),
     "Argument {.arg data} must be a {.cls data.frame} object."
   )
   stopifnot_(
-    checkmate::test_string(x = treatment),
-    "Argument {.arg treatment} must be a single character string."
+    checkmate::test_string(x = group),
+    "Argument {.arg group} must be a single character string."
   )
   stopifnot_(
-    !is.null(data[[treatment]]),
+    !is.null(data[[group]]),
     c(
-      "Argument {.arg treatment} must be a column name of {.arg data}:",
-      `x` = "Column {.var {treatment}} does not exist in {.arg data}."
+      "Argument {.arg group} must be a column name of {.arg data}:",
+      `x` = "Column {.var {group}} does not exist in {.arg data}."
     )
   )
   data <- data.table::as.data.table(data.table::copy(data))
   data.table::set(
     x = data,
-    j = treatment,
-    value = as.factor(data[[treatment]])
+    j = group,
+    value = as.factor(data[[group]])
   )
   cols <- names(data)
   stopifnot_(
@@ -34,9 +34,8 @@ parse_data <- function(data, treatment, norm, genes, ref_genes, eff) {
     )
   )
   stopifnot_(
-    is.null(genes) || !treatment %in% genes,
-    "Treatment assignment column {.val {treatment}}
-     is also defined in {.arg genes}."
+    is.null(genes) || !group %in% genes,
+    "Grouping column {.val {group}} is also defined in {.arg genes}."
   )
   stopifnot_(
     is.null(ref_genes) || checkmate::test_character(x = ref_genes),
@@ -51,9 +50,8 @@ parse_data <- function(data, treatment, norm, genes, ref_genes, eff) {
     )
   )
   stopifnot_(
-    is.null(ref_genes) || !treatment %in% genes,
-    "Treatment assignment column {.val {treatment}}
-     is also defined in {.arg ref_genes}."
+    is.null(ref_genes) || !group %in% genes,
+    "Grouping column {.val {group}} is also defined in {.arg ref_genes}."
   )
   stopifnot_(
     is.null(genes) || is.null(ref_genes) || !any(ref_genes %in% genes),
@@ -65,15 +63,15 @@ parse_data <- function(data, treatment, norm, genes, ref_genes, eff) {
   )
   genes <- ifelse_(
     is.null(genes),
-    setdiff(cols, union(treatment, ref_genes)),
+    setdiff(cols, union(group, ref_genes)),
     genes
   )
-  data <- data[, .SD, .SDcols = c(genes, ref_genes, treatment)]
+  data <- data[, .SD, .SDcols = c(genes, ref_genes, group)]
   gene_cols <- c(genes, ref_genes)
   col_types <- vapply(
     data[, .SD, .SDcols = gene_cols],
     typeof,
-    character(1L),
+    character(1L)
   )
   valid_cols <- col_types == "double"
   stopifnot_(
@@ -96,18 +94,18 @@ parse_data <- function(data, treatment, norm, genes, ref_genes, eff) {
      {.var {cols[!finite_cols]}} of {.arg data}."
   )
   if (identical(norm, "normagene")) {
-    data <- normagene(data, treatment)
+    data <- normagene(data, group)
   }
-  parse_efficiency(data, treatment, norm, ref_genes, eff)
+  parse_efficiency(data, group, norm, ref_genes, eff)
 }
 
 #' Parse Efficiency Values For Analysis
 #'
 #' @inheritParams qpcr
 #' @noRd
-parse_efficiency <- function(data, treatment, norm, ref_genes, eff) {
+parse_efficiency <- function(data, group, norm, ref_genes, eff) {
   if (!identical(norm, "reference")) {
-    return(data)
+    return(data[, .SD * log(2.0), by = group])
   }
   stopifnot_(
     !is.null(eff) && is.list(eff),
@@ -118,7 +116,7 @@ parse_efficiency <- function(data, treatment, norm, ref_genes, eff) {
     !is.null(names(eff_names)),
     "Argument {.arg eff} must have names."
   )
-  gene_cols <- setdiff(names(data), treatment)
+  gene_cols <- setdiff(names(data), group)
   eff <- eff[gene_cols]
   stopifnot_(
     all(gene_cols %in% eff_names),
@@ -137,5 +135,5 @@ parse_efficiency <- function(data, treatment, norm, ref_genes, eff) {
              for gene{?s} {.val {gene_cols[eff <= 0.0]}}"
     )
   )
-  data[, .SD * log(eff)[col(.SD)], by = treatment]
+  data[, .SD * log(eff)[col(.SD)], by = group]
 }
