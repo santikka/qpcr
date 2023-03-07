@@ -30,20 +30,20 @@ local_tests <- function(data, group, norm, methods, ref_genes, m, alpha) {
     idx_x <- data[[group]] == pairs[1L, i]
     idx_y <- data[[group]] == pairs[2L, i]
     idx <- i - n_pairs
+    ref_x <- 0.0
+    ref_y <- 0.0
+    if (!is.null(ref_genes)) {
+      ref_x <- data[idx_x, rowMeans(.SD), .SDcols = ref_genes]
+      ref_y <- data[idx_y, rowMeans(.SD), .SDcols = ref_genes]
+    }
     for (j in seq_len(n_genes)) {
       idx <- idx + n_pairs
-      x_target <- data[idx_x, ][[gene_cols[j]]]
-      y_target <- data[idx_y, ][[gene_cols[j]]]
-      x_reference <- 0.0
-      y_reference <- 0.0
-      if (!is.null(ref_genes)) {
-        x_reference <- data[idx_x, rowMeans(.SD), .SDcols = ref_genes]
-        y_reference <- data[idx_y, rowMeans(.SD), .SDcols = ref_genes]
-      }
+      target_x <- data[idx_x, ][[gene_cols[j]]]
+      target_y <- data[idx_y, ][[gene_cols[j]]]
       if ("randomization_test" %in% methods) {
         tmp <- randomization_test(
-          x = x_target - x_reference,
-          y = y_target - y_reference,
+          x = target_x - ref_x,
+          y = target_y - ref_y,
           m = m,
           alpha = alpha
         )
@@ -54,8 +54,8 @@ local_tests <- function(data, group, norm, methods, ref_genes, m, alpha) {
       }
       if ("t_test" %in% methods) {
         tmp <- t.test(
-          x = x_target - x_reference,
-          y = y_target - y_reference,
+          x = target_x - ref_x,
+          y = target_y - ref_y,
           conf.level = alpha
         )
         data.table::set(out, i = idx, j = "t_stat", value = tmp$statistic)
@@ -66,8 +66,8 @@ local_tests <- function(data, group, norm, methods, ref_genes, m, alpha) {
       }
       if ("wilcoxon_test" %in% methods) {
         tmp <- wilcox.test(
-          x = x_target - x_reference,
-          y = y_target - y_reference,
+          x = target_x - ref_x,
+          y = target_y - ref_y,
           conf.int = TRUE,
           conf.level = alpha
         )

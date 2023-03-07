@@ -2,7 +2,7 @@
 #'
 #' @inheritParams qpcr
 #' @noRd
-parse_data <- function(data, group, norm, genes, ref_genes, eff) {
+parse_data <- function(data, group, norm, levels, genes, ref_genes, eff) {
   stopifnot_(
     is.data.frame(data),
     "Argument {.arg data} must be a {.cls data.frame} object."
@@ -24,6 +24,16 @@ parse_data <- function(data, group, norm, genes, ref_genes, eff) {
     j = group,
     value = as.factor(data[[group]])
   )
+  levels <- ifelse_(is.null(levels), unique(data[[group]]), levels)
+  stopifnot_(
+    checkmate::test_character(x = levels),
+    "Argument {.arg levels} must be a character vector of group level names."
+  )
+  stopifnot_(
+    all(levels %in% unique(data[[group]])),
+    "Argument {.arg levels} contains group levels not present in the data."
+  )
+  data <- data[data[[group]] %in% levels, ]
   cols <- names(data)
   stopifnot_(
     is.null(genes) || all(genes %in% cols),

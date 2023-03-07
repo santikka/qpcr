@@ -25,6 +25,9 @@
 #'   rank sum test to the data, respectively. See [stats::kruskal.test] for
 #'   more information on the test. By default, only the randomization test
 #'   is applied. If `NULL`, applies all methods.
+#' @param levels \[`character()`]\cr An optional vector of `group` variable
+#'   levels to analyze. Can be used to reorder the groups. If `NULL`, all
+#'   levels are compared in the order they appear in the data.
 #' @param genes \[`character()`]\cr An optional vector of column names of
 #'   `data` naming the genes that should be included in the analysis.
 #'   If `NULL`, it is assumed that all columns expect those named in
@@ -50,7 +53,7 @@ qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
                    "randomization_test", "t_test", "wilcoxon_test",
                    "anova", "kruskal_test"
                   ),
-                 genes = NULL, ref_genes = NULL, eff = NULL,
+                 levels = NULL, genes = NULL, ref_genes = NULL, eff = NULL,
                  m = 10000L, alpha = 0.95) {
   stopifnot_(
     !missing(data),
@@ -97,8 +100,9 @@ qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
   )
   ref_genes <- onlyif(identical(norm, "reference"), ref_genes)
   eff <- onlyif(identical(norm, "reference"), unlist(eff))
-  data <- parse_data(data, group, norm, genes, ref_genes, eff)
-  qpcr_(data, group, norm, methods, ref_genes, m, alpha)
+  data <- parse_data(data, group, norm, levels, genes, ref_genes, eff)
+  levels <- unique(data[[group]])
+  qpcr_(data, group, norm, methods, levels, ref_genes, m, alpha)
 }
 
 #' qPCR Analysis
