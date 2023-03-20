@@ -2,7 +2,7 @@
 #'
 #' @inheritParams qpcr
 #' @noRd
-parse_data <- function(data, group, norm, levels, genes, ref_genes, eff) {
+parse_data <- function(data, group, norm, group_levels, genes, ref_genes, eff) {
   stopifnot_(
     is.data.frame(data),
     "Argument {.arg data} must be a {.cls data.frame} object."
@@ -24,16 +24,20 @@ parse_data <- function(data, group, norm, levels, genes, ref_genes, eff) {
     j = group,
     value = as.factor(data[[group]])
   )
-  levels <- ifelse_(is.null(levels), unique(data[[group]]), levels)
-  stopifnot_(
-    checkmate::test_character(x = levels),
-    "Argument {.arg levels} must be a character vector of group level names."
+  group_levels <- ifelse_(
+    is.null(group_levels),
+    levels(data[[group]]),
+    group_levels
   )
   stopifnot_(
-    all(levels %in% unique(data[[group]])),
-    "Argument {.arg levels} contains group levels not present in the data."
+    checkmate::test_character(x = group_levels),
+    "Argument {.arg group_levels} must be a character vector."
   )
-  data <- data[data[[group]] %in% levels, ]
+  stopifnot_(
+    all(group_levels %in% levels(data[[group]])),
+    "Argument {.arg group_levels} contains levels not present in the data."
+  )
+  data <- data[data[[group]] %in% group_levels, ]
   cols <- names(data)
   stopifnot_(
     is.null(genes) || all(genes %in% cols),
@@ -122,8 +126,8 @@ parse_efficiency <- function(data, group, norm, ref_genes, eff) {
     "Argument {.arg eff} must be a {.cls list} or a {.cls data.frame} object."
   )
   eff_names <- names(eff)
-  stopifnot(
-    !is.null(names(eff_names)),
+  stopifnot_(
+    !is.null(eff_names),
     "Argument {.arg eff} must have names."
   )
   gene_cols <- setdiff(names(data), group)
@@ -137,6 +141,7 @@ parse_efficiency <- function(data, group, norm, ref_genes, eff) {
             argument {.arg eff}."
     )
   )
+  eff <- unlist(eff)
   stopifnot_(
     all(eff > 0.0),
     c(

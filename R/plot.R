@@ -1,4 +1,5 @@
-fold_change <- function(data, group, genes, ref_genes) {
+fold_change_plots <- function(data, group, ref_genes) {
+  has_ref <- !is.null(ref_genes)
   pairs <- utils::combn(unique(data[[group]]), 2L)
   gene_cols <- setdiff(names(data), c(group, ref_genes))
   n_pairs <- ncol(pairs)
@@ -17,35 +18,83 @@ fold_change <- function(data, group, genes, ref_genes) {
     genes_y <- data[idx_y, .SD, .SDcols = gene_cols]
     ref_x <- 0.0
     ref_y <- 0.0
-    if (!is.null(ref_genes)) {
+    if (has_ref) {
       ref_x <- data[idx_x, rowMeans(.SD), .SDcols = ref_genes]
       ref_y <- data[idx_y, rowMeans(.SD), .SDcols = ref_genes]
     }
     data_pairs[idx, (gene_cols) := genes_x - ref_x - genes_y + ref_y]
   }
-  data_long <- melt(
+  data_long <- data.table::melt(
     data_pairs,
     measure.vars = gene_cols,
     variable.name = "gene",
     value.name = "logct"
   )
-  data_summ <- data_long[,
+  data_fold <- data_long[,
     {
-      mean <- exp(mean(logct))
-      sd <- sd(exp(logct))
+      mean <- mean(logct)
+      sd <- sd(logct)
+      list(mean = exp(mean), lo = exp(mean - sd), hi = exp(mean + sd))
+    },
+    by = c("pair", "gene")
+  ]
+  data_log_fold <- data_long[,
+    {
+      mean <- ifelse_(has_ref, mean(logct), mean(logct / log(2.0)))
+      sd <- ifelse_(has_ref, sd(logct), sd(logct / log(2.0)))
       list(mean = mean, lo = mean - sd, hi = mean + sd)
     },
     by = c("pair", "gene")
   ]
   # avoid NSE warnings in R CMD check
   gene <- pair <- lo <- hi <- NULL
-  ggplot2::ggplot(data_summ, ggplot2::aes(x = gene, y = mean, color = pair)) +
+  plot_fold <-
+    ggplot2::ggplot(data_fold, ggplot2::aes(x = gene, y = mean, color = pair)) +
     ggplot2::geom_point(position = ggplot2::position_dodge(0.75)) +
     ggplot2::geom_errorbar(
       ggplot2::aes(ymin = lo, ymax = hi),
       position = ggplot2::position_dodge(0.75)
     ) +
     ggplot2::xlab("") +
-    ggplot2::ylab("Fold Change (mean +- SD)") +
-    ggplot2::geom_hline(yintercept = 1.0, alpha = 0.33)
+    ggplot2::ylab(
+      expression(
+        "Fold Change" * phantom(0) * 2^{-Delta * Delta * "Ct"} * phantom(0) *
+          bgroup("(", 2^{"mean " %+-% " SD"}, ")")
+      )
+    ) +
+    ggplot2::geom_hline(yintercept = 1.0, alpha = 0.33) +
+    ggplot2::scale_y_continuous(
+      limits = c(0.0, NA),
+      expand = ggplot2::expansion(mult = c(0, 0.1))
+    ) +
+    ggplot2::scale_color_discrete(name = "") +
+    ggplot2::theme_bw(base_size = 12) +
+    ggplot2::theme(
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)
+    )
+  plot_log_fold <-
+    ggplot2::ggplot(
+      data_log_fold,
+      ggplot2::aes(x = gene, y = mean, color = pair)
+    ) +
+    ggplot2::geom_point(position = ggplot2::position_dodge(0.75)) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = lo, ymax = hi),
+      position = ggplot2::position_dodge(0.75)
+    ) +
+    ggplot2::xlab("") +
+    ggplot2::ylab(
+      expression(
+        "Log"[2] * " Fold Change" * phantom(0)
+          -Delta * Delta * "Ct" * phantom(0) * "(mean " %+-% " SD)"
+      )
+    ) +
+    ggplot2::geom_hline(yintercept = 0.0, alpha = 0.33) +
+    ggplot2::scale_color_discrete(name = "") +
+    ggplot2::theme_bw(base_size = 12) +
+    ggplot2::theme(
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)
+    )
+
+  list(fold = plot_fold, log_fold = plot_log_fold)
 }

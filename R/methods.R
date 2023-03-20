@@ -92,8 +92,9 @@ global_tests <- function(data, group, norm, methods, ref_genes, alpha, ...) {
   n_genes <- length(gene_cols)
   refs <- 0.0
   if (identical(norm, "reference")) {
-    refs <- data[, .SD., SDcols = c(ref_genes, group)][,
-      rowMeans(.SD), by = group]
+    refs <- data[, .SD, .SDcols = c(ref_genes, group)][,
+      list(ref = rowMeans(.SD)), by = group
+    ]$ref
   }
   grp <- data[[group]]
   out_anova <- data.table::data.table(
