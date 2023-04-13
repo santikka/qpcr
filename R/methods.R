@@ -2,84 +2,72 @@
 #'
 #' @inheritParams qpcr
 #' @noRd
-local_tests <- function(data, group, norm, methods, ref_genes, m, alpha) {
+local_tests <- function(data, group, norm, methods,
+                        comparisons, ref_genes, m, alpha) {
   methods <- methods[methods %in% local_methods]
-  pairs <- utils::combn(unique(data[[group]]), 2L)
-  gene_cols <- setdiff(names(data), c(group, ref_genes))
-  n_pairs <- ncol(pairs)
+  gene_cols <- setdiff(names(data), c(".group", ref_genes))
+  n_comparisons <- ncol(comparisons)
   n_genes <- length(gene_cols)
   out <- data.table::data.table(
-    gene = rep(gene_cols, each = n_pairs),
-    group_a = rep(pairs[1L, ], n_genes),
-    group_b = rep(pairs[2L, ], n_genes),
-    r_stat = NA_real_,
-    r_lwr = NA_real_,
-    r_upr = NA_real_,
-    r_p = NA_real_,
-    t_stat = NA_real_,
-    t_df = NA_real_,
-    t_lwr = NA_real_,
-    t_upr = NA_real_,
-    t_p = NA_real_,
-    w_stat = NA_real_,
-    w_lwr = NA_real_,
-    w_upr = NA_real_,
-    w_p = NA_real_
+    level_a = comparisons[1L, ]
+    level_b = comparisons[2L, ]
   )
-  for (i in seq_len(n_pairs)) {
-    idx_x <- data[[group]] == pairs[1L, i]
-    idx_y <- data[[group]] == pairs[2L, i]
-    idx <- i - n_pairs
+  cols_a <- paste0(c("gene", group), "_a")
+  cols_b <- paste0(c("gene", group), "_b")
+  out[, c(cols_a) := data.table::tstrsplit(level_a, ":", fixed = TRUE)]
+  out[, c(cols_b) := data.table::tstrsplit(level_b, ":", fixed = TRUE)]
+  for (i in seq_len(n_comparisons)) {
+    idx_x <- data$.group == out$level_a
+    idx_y <- data$.group == out$level_b
     ref_x <- 0.0
     ref_y <- 0.0
     if (!is.null(ref_genes)) {
       ref_x <- data[idx_x, rowMeans(.SD), .SDcols = ref_genes]
       ref_y <- data[idx_y, rowMeans(.SD), .SDcols = ref_genes]
     }
-    for (j in seq_len(n_genes)) {
-      idx <- idx + n_pairs
-      target_x <- data[idx_x, ][[gene_cols[j]]]
-      target_y <- data[idx_y, ][[gene_cols[j]]]
-      if ("randomization_test" %in% methods) {
-        tmp <- randomization_test(
-          x = target_x - ref_x,
-          y = target_y - ref_y,
-          m = m,
-          alpha = alpha
-        )
-        data.table::set(out, i = idx, j = "r_stat", value = tmp$expr_obs)
-        data.table::set(out, i = idx, j = "r_lwr",  value = tmp$expr_lwr)
-        data.table::set(out, i = idx, j = "r_upr",  value = tmp$expr_upr)
-        data.table::set(out, i = idx, j = "r_p",    value = tmp$p_value)
-      }
-      if ("t_test" %in% methods) {
-        tmp <- t.test(
-          x = target_x - ref_x,
-          y = target_y - ref_y,
-          conf.level = alpha
-        )
-        data.table::set(out, i = idx, j = "t_stat", value = tmp$statistic)
-        data.table::set(out, i = idx, j = "t_df",   value = tmp$parameter)
-        data.table::set(out, i = idx, j = "t_lwr",  value = tmp$conf.int[1L])
-        data.table::set(out, i = idx, j = "t_upr",  value = tmp$conf.int[2L])
-        data.table::set(out, i = idx, j = "t_p",    value = tmp$p.value)
-      }
-      if ("wilcoxon_test" %in% methods) {
-        tmp <- wilcox.test(
-          x = target_x - ref_x,
-          y = target_y - ref_y,
-          conf.int = TRUE,
-          conf.level = alpha
-        )
-        data.table::set(out, i = idx, j = "w_stat", value = tmp$statistic)
-        data.table::set(out, i = idx, j = "w_lwr",  value = tmp$conf.int[1L])
-        data.table::set(out, i = idx, j = "w_upr",  value = tmp$conf.int[2L])
-        data.table::set(out, i = idx, j = "w_p",    value = tmp$p.value)
-      }
+    target_x <- data[idx_x, ][[out$gene_a[i]]]
+    target_y <- data[idx_y, ][[out$gene_b[i]]]
+    if ("randomization_test" %in% methods) {
+      tmp <- randomization_test(
+        x = target_x - ref_x,
+        y = target_y - ref_y,
+        m = m,
+        alpha = alpha
+      )
+      data.table::set(out, i = i, j = "r_stat", value = tmp$expr_obs)
+      data.table::set(out, i = i, j = "r_lwr",  value = tmp$expr_lwr)
+      data.table::set(out, i = i, j = "r_upr",  value = tmp$expr_upr)
+      data.table::set(out, i = i, j = "r_p",    value = tmp$p_value)
+    }
+    if ("t_test" %in% methods) {
+      tmp <- t.test(
+        x = target_x - ref_x,
+        y = target_y - ref_y,
+        conf.level = alpha
+      )
+      data.table::set(out, i = i, j = "t_stat", value = tmp$statistic)
+      data.table::set(out, i = i, j = "t_df",   value = tmp$parameter)
+      data.table::set(out, i = i, j = "t_lwr",  value = tmp$conf.int[1L])
+      data.table::set(out, i = i, j = "t_upr",  value = tmp$conf.int[2L])
+      data.table::set(out, i = i, j = "t_p",    value = tmp$p.value)
+    }
+    if ("wilcoxon_test" %in% methods) {
+      tmp <- wilcox.test(
+        x = target_x - ref_x,
+        y = target_y - ref_y,
+        conf.int = TRUE,
+        conf.level = alpha
+      )
+      data.table::set(out, i = i, j = "w_stat", value = tmp$statistic)
+      data.table::set(out, i = i, j = "w_lwr",  value = tmp$conf.int[1L])
+      data.table::set(out, i = i, j = "w_upr",  value = tmp$conf.int[2L])
+      data.table::set(out, i = i, j = "w_p",    value = tmp$p.value)
     }
   }
-  keep_cols <- names(out)[vapply(out, function(x) all(!is.na(x)), logical(1L))]
-  out[, .SD, .SDcols = keep_cols]
+  out[, c("level_a", "level_b") := NULL]
+  out
+  #keep_cols <- names(out)[vapply(out, function(x) all(!is.na(x)), logical(1L))]
+  #out[, .SD, .SDcols = keep_cols]
 }
 
 #' Tests For Each Gene Over All Groups
@@ -88,15 +76,15 @@ local_tests <- function(data, group, norm, methods, ref_genes, m, alpha) {
 #' @noRd
 global_tests <- function(data, group, norm, methods, ref_genes, alpha, ...) {
   methods <- methods[methods %in% global_methods]
-  gene_cols <- setdiff(names(data), c(group, ref_genes))
+  gene_cols <- setdiff(names(data), c(".group", ref_genes))
   n_genes <- length(gene_cols)
   refs <- 0.0
   if (identical(norm, "reference")) {
-    refs <- data[, .SD, .SDcols = c(ref_genes, group)][,
-      list(ref = rowMeans(.SD)), by = group
+    refs <- data[, .SD, .SDcols = c(ref_genes, ".group")][,
+      list(ref = rowMeans(.SD)), by = ".group"
     ]$ref
   }
-  grp <- data[[group]]
+  grp <- data$.group
   out_anova <- data.table::data.table(
     gene = gene_cols,
     df_trt = NA_real_,

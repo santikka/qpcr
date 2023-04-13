@@ -1,7 +1,7 @@
-fold_change_plots <- function(data, group, ref_genes) {
+fold_change_plots <- function(data, ref_genes) {
   has_ref <- !is.null(ref_genes)
-  pairs <- utils::combn(unique(data[[group]]), 2L)
-  gene_cols <- setdiff(names(data), c(group, ref_genes))
+  pairs <- utils::combn(unique(data$.group, 2L)
+  genes <- setdiff(names(data), c(".group", ref_genes))
   n_pairs <- ncol(pairs)
   n_data <- data[, .N, by = group]$N[1L]
   data_pairs <- data.table::data.table(
