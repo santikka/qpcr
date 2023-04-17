@@ -28,11 +28,11 @@ parse_data <- function(data, group, norm, ref_genes, eff, eff_adjust) {
   data.table::set(
     x = data,
     j = ".group",
-    value = interaction(data[, c(group)], sep = ":")
+    value = interaction(data[, .SD, .SDcols = group], sep = ":")
   )
-  data <- data[, .SD, .SDcols = c(setdiff(data_names, group), ".group")]
+  data <- data[, .SD, .SDcols = c(setdiff(cols, group), ".group")]
   cols <- names(data)
-  invalid <- ref_genes[!reg_genes %in% cols]
+  invalid <- ref_genes[!ref_genes %in% cols]
   stopifnot_(
     is.null(ref_genes) || identical(length(invalid), 0L),
     c(

@@ -9,16 +9,20 @@ local_tests <- function(data, group, norm, methods,
   n_comparisons <- ncol(comparisons)
   n_genes <- length(gene_cols)
   out <- data.table::data.table(
-    level_a = comparisons[1L, ]
+    level_a = comparisons[1L, ],
     level_b = comparisons[2L, ]
   )
   cols_a <- paste0(c("gene", group), "_a")
   cols_b <- paste0(c("gene", group), "_b")
   out[, c(cols_a) := data.table::tstrsplit(level_a, ":", fixed = TRUE)]
   out[, c(cols_b) := data.table::tstrsplit(level_b, ":", fixed = TRUE)]
+  cols_a <- paste0(group, "_a")
+  cols_b <- paste0(group, "_b")
+  out[, group_a := do.call(paste, c(.SD, sep = ":")), .SDcols = cols_a]
+  out[, group_b := do.call(paste, c(.SD, sep = ":")), .SDcols = cols_b]
   for (i in seq_len(n_comparisons)) {
-    idx_x <- data$.group == out$level_a
-    idx_y <- data$.group == out$level_b
+    idx_x <- data$.group == out$group_a[i]
+    idx_y <- data$.group == out$group_b[i]
     ref_x <- 0.0
     ref_y <- 0.0
     if (!is.null(ref_genes)) {
@@ -64,7 +68,7 @@ local_tests <- function(data, group, norm, methods,
       data.table::set(out, i = i, j = "w_p",    value = tmp$p.value)
     }
   }
-  out[, c("level_a", "level_b") := NULL]
+  out[, c("level_a", "level_b", "group_a", "group_b") := NULL]
   out
   #keep_cols <- names(out)[vapply(out, function(x) all(!is.na(x)), logical(1L))]
   #out[, .SD, .SDcols = keep_cols]

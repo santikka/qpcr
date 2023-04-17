@@ -127,8 +127,8 @@ qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
      {.cls numeric} value between 0 and 1."
   )
   ref_genes <- onlyif(identical(norm, "reference"), ref_genes)
-  data <- parse_data(data, norm, group, ref_genes, eff, eff_adjust)
-  comparisons <- parse_comparisons(data, group comparisons)
+  data <- parse_data(data, group, norm, ref_genes, eff, eff_adjust)
+  comparisons <- parse_comparisons(data, group, ref_genes, comparisons)
   qpcr_(data, group, norm, methods, comparisons, ref_genes, m, alpha)
 }
 
@@ -136,16 +136,18 @@ qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
 #'
 #' @inheritParams qpcr
 #' @noRd
-qpcr_ <- function(data, group, norm, methods, comparisons ref_genes, m, alpha) {
+qpcr_ <- function(data, group, norm,
+                  methods, comparisons, ref_genes, m, alpha) {
   local <- NULL
   global <- NULL
   args <- as.list(match.call()[-1L])
   if (any(local_methods  %in% methods)) {
     local <- do.call("local_tests", args)
   }
-  if (any(global_methods %in% methods)) {
-    global <- do.call("global_tests", args)
-  }
-  plots <- fold_change_plots(data, ref_genes)
+  #if (any(global_methods %in% methods)) {
+  #  global <- do.call("global_tests", args)
+  #}
+  plots <- NULL
+  #plots <- fold_change_plots(data, ref_genes)
   list(local = local, global = global, plots = plots)
 }

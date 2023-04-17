@@ -3,7 +3,7 @@
 #'
 #' @inheritParams qpcr
 #' @noRd
-parse_comparisons <- function(data, group, ref_genes comparisons) {
+parse_comparisons <- function(data, group, ref_genes, comparisons) {
   n_group <- length(group)
   genes <- setdiff(names(data), union(".group", ref_genes))
   levels_grid <- expand.grid(gene = genes, group = levels(data$.group))
@@ -59,8 +59,12 @@ parse_comparison <- function(x, levels, n_group) {
     "Invalid comparison"
   )
   match <- regmatches(x, m)[[1L]][-1L]
-  match[nzchar(match)] <- "[^:]+"
-  pattern <- paste0(match)
-  m <- regexec(pattern = pattern, text = levels, perl = TRUE)
-  unlist(regmatches(levels, m))
+  wildcard <- !nzchar(match)
+  if (any(wildcard)) {
+    match[wildcard] <- "[^:]+"
+    pattern <- paste(match, collapse = ":")
+    m <- regexec(pattern = pattern, text = levels, perl = TRUE)
+    unlist(regmatches(levels, m))
+
+  }
 }
