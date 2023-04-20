@@ -108,16 +108,17 @@ parse_efficiency <- function(data,  norm, ref_genes, eff, eff_adjust) {
     )
   )
   eff <- unlist(eff)
-  invalid <- isTRUE(eff < 0.0) | !is.finite(eff)
+  invalid <- vapply(eff, function(x) isTRUE(x < 0.0), logical(1L)) |
+    !is.finite(eff)
   stopifnot_(
-    identical(length(invalid), 0L),
+    !any(invalid),
     c(
       "Primer efficiency values must be greater than 0.",
       `x` = "Non-positive or non-finite efficiency value{?s} {?was/were} found
              for gene{?s} {.val {gene_cols[invalid]}}"
     )
   )
-  eff <- switch(
+  eff <- 1.0 + switch(
     eff_adjust,
     `none` = eff ,
     `limit` = pmin(eff, 1.0),

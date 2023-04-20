@@ -3,26 +3,31 @@
 #' @inheritParams qpcr
 #' @noRd
 local_tests <- function(data, group, norm, methods,
-                        comparisons, ref_genes, m, alpha) {
+                        comparisons, between, ref_genes, m, alpha) {
   methods <- methods[methods %in% local_methods]
   gene_cols <- setdiff(names(data), c(".group", ref_genes))
   n_comparisons <- ncol(comparisons)
   n_genes <- length(gene_cols)
-  out <- data.table::data.table(
+  pairs <- data.table::data.table(
     level_a = comparisons[1L, ],
     level_b = comparisons[2L, ]
   )
   cols_a <- paste0(c("gene", group), "_a")
   cols_b <- paste0(c("gene", group), "_b")
-  out[, c(cols_a) := data.table::tstrsplit(level_a, ":", fixed = TRUE)]
-  out[, c(cols_b) := data.table::tstrsplit(level_b, ":", fixed = TRUE)]
+  pairs[, c(cols_a) := data.table::tstrsplit(level_a, ":", fixed = TRUE)]
+  pairs[, c(cols_b) := data.table::tstrsplit(level_b, ":", fixed = TRUE)]
   cols_a <- paste0(group, "_a")
   cols_b <- paste0(group, "_b")
-  out[, group_a := do.call(paste, c(.SD, sep = ":")), .SDcols = cols_a]
-  out[, group_b := do.call(paste, c(.SD, sep = ":")), .SDcols = cols_b]
-  for (i in seq_len(n_comparisons)) {
-    idx_x <- data$.group == out$group_a[i]
-    idx_y <- data$.group == out$group_b[i]
+  pairs[, group_a := do.call(paste, c(.SD, sep = ":")), .SDcols = cols_a]
+  pairs[, group_b := do.call(paste, c(.SD, sep = ":")), .SDcols = cols_b]
+  if (!between) {
+    pairs <- pairs[gene_a == gene_b, ]
+  }
+  local <- data.table::copy(pairs)
+  boot <- vector(mode = "list", length = nrow(pairs))
+  for (i in seq_len(nrow(out))) {
+    idx_x <- data$.group == local$group_a[i]
+    idx_y <- data$.group == local$group_b[i]
     ref_x <- 0.0
     ref_y <- 0.0
     if (!is.null(ref_genes)) {
@@ -31,17 +36,17 @@ local_tests <- function(data, group, norm, methods,
     }
     target_x <- data[idx_x, ][[out$gene_a[i]]]
     target_y <- data[idx_y, ][[out$gene_b[i]]]
+    boot[[i]] <- bootstrap_expression(
+      x = target_x - ref_x,
+      y = target_y - ref_y,
+      m = m
+    )
     if ("randomization_test" %in% methods) {
-      tmp <- randomization_test(
-        x = target_x - ref_x,
-        y = target_y - ref_y,
-        m = m,
-        alpha = alpha
-      )
-      data.table::set(out, i = i, j = "r_stat", value = tmp$expr_obs)
-      data.table::set(out, i = i, j = "r_lwr",  value = tmp$expr_lwr)
-      data.table::set(out, i = i, j = "r_upr",  value = tmp$expr_upr)
-      data.table::set(out, i = i, j = "r_p",    value = tmp$p_value)
+      tmp <- randomization_test(boot = boot[[i]], alpha = alpha)
+      data.table::set(local, i = i, j = "r_stat", value = tmp$expr_obs)
+      data.table::set(local, i = i, j = "r_lwr",  value = tmp$expr_lwr)
+      data.table::set(local, i = i, j = "r_upr",  value = tmp$expr_upr)
+      data.table::set(local, i = i, j = "r_p",    value = tmp$p_value)
     }
     if ("t_test" %in% methods) {
       tmp <- t.test(
@@ -49,11 +54,11 @@ local_tests <- function(data, group, norm, methods,
         y = target_y - ref_y,
         conf.level = alpha
       )
-      data.table::set(out, i = i, j = "t_stat", value = tmp$statistic)
-      data.table::set(out, i = i, j = "t_df",   value = tmp$parameter)
-      data.table::set(out, i = i, j = "t_lwr",  value = tmp$conf.int[1L])
-      data.table::set(out, i = i, j = "t_upr",  value = tmp$conf.int[2L])
-      data.table::set(out, i = i, j = "t_p",    value = tmp$p.value)
+      data.table::set(local, i = i, j = "t_stat", value = tmp$statistic)
+      data.table::set(local, i = i, j = "t_df",   value = tmp$parameter)
+      data.table::set(local, i = i, j = "t_lwr",  value = tmp$conf.int[1L])
+      data.table::set(local, i = i, j = "t_upr",  value = tmp$conf.int[2L])
+      data.table::set(local, i = i, j = "t_p",    value = tmp$p.value)
     }
     if ("wilcoxon_test" %in% methods) {
       tmp <- wilcox.test(
@@ -62,23 +67,21 @@ local_tests <- function(data, group, norm, methods,
         conf.int = TRUE,
         conf.level = alpha
       )
-      data.table::set(out, i = i, j = "w_stat", value = tmp$statistic)
-      data.table::set(out, i = i, j = "w_lwr",  value = tmp$conf.int[1L])
-      data.table::set(out, i = i, j = "w_upr",  value = tmp$conf.int[2L])
-      data.table::set(out, i = i, j = "w_p",    value = tmp$p.value)
+      data.table::set(local, i = i, j = "w_stat", value = tmp$statistic)
+      data.table::set(local, i = i, j = "w_lwr",  value = tmp$conf.int[1L])
+      data.table::set(local, i = i, j = "w_upr",  value = tmp$conf.int[2L])
+      data.table::set(local, i = i, j = "w_p",    value = tmp$p.value)
     }
   }
-  out[, c("level_a", "level_b", "group_a", "group_b") := NULL]
-  out
-  #keep_cols <- names(out)[vapply(out, function(x) all(!is.na(x)), logical(1L))]
-  #out[, .SD, .SDcols = keep_cols]
+  local[, c("level_a", "level_b", "group_a", "group_b") := NULL]
+  list(local = local, pairs = pairs, boot = boot)
 }
 
 #' Tests For Each Gene Over All Groups
 #'
 #' @inheritParams qcpr
 #' @noRd
-global_tests <- function(data, group, norm, methods, ref_genes, alpha, ...) {
+global_tests <- function(data, group, norm, methods, ref_genes, alpha) {
   methods <- methods[methods %in% global_methods]
   gene_cols <- setdiff(names(data), c(".group", ref_genes))
   n_genes <- length(gene_cols)
@@ -129,16 +132,15 @@ global_tests <- function(data, group, norm, methods, ref_genes, alpha, ...) {
   list(out_anova = out_anova, out_kruskal = out_kruskal)
 }
 
-#' Pairwise Randomization Test Between Two Groups
+#' Compute m Bootstrap Samples of Log Expression Values
 #'
-#' @export
 #' @inheritParams qpcr
 #' @param x \[`numeric()`]\cr A vector of (efficiency adjusted)
 #'   Ct values for the target gene in group A.
 #' @param y \[`numeric()`]\cr A vector of (efficiency adjusted)
 #'   Ct values for the target gene in group B.
 #' @noRd
-randomization_test <- function(x, y, m, alpha) {
+bootstrap_expression <- function(x, y, m) {
   xy <- c(x, y)
   n_x <- length(x)
   n_y <- length(y)
@@ -147,8 +149,6 @@ randomization_test <- function(x, y, m, alpha) {
   comb <- utils::combn(seq_len(n_xy), 2L)
   pairs <- cbind(comb, n_xy + 1L - comb)
   n_pairs <- ncol(pairs)
-  idx_x <- sample.int(n_x, m, replace = TRUE)
-  idx_y <- sample.int(n_y, m, replace = TRUE)
   log_expr_obs <- mean(x) - mean(y)
   log_expr_sim <- numeric(m)
   x_seq <- seq_len(n_x)
@@ -159,11 +159,24 @@ randomization_test <- function(x, y, m, alpha) {
     idx_y <- pairs[2L, cols][y_seq]
     log_expr_sim[i] <- mean(xy[idx_x]) - mean(xy[idx_y])
   }
-  p <- mean(abs(log_expr_sim) > abs(log_expr_obs))
-  a <- (1.0 - alpha) / 2.0
-  expr_sim <- exp(log_expr_sim)
   list(
-    expr_obs = exp(log_expr_obs),
+    log_expr_obs = log_expr_obs
+    log_expr_sim = log_expr_sim
+  )
+}
+
+#' Pairwise Randomization Test Between Two Groups
+#'
+#' @export
+#' @inheritParams qpcr
+#' @inheritParams bootstrap_expression
+#' @noRd
+randomization_test <- function(boot, alpha) {
+  p <- mean(abs(boot$log_expr_sim) > abs(boot$log_expr_obs))
+  a <- (1.0 - alpha) / 2.0
+  expr_sim <- exp(boot$log_expr_sim)
+  list(
+    expr_obs = exp(boot$log_expr_obs),
     expr_lwr = quantile(expr_sim, a),
     expr_upr = quantile(expr_sim, 1 - a),
     p_value = p

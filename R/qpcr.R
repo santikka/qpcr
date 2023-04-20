@@ -46,18 +46,20 @@
 #'   e.g., say we only had the `treatment` column in the previous example, then
 #'   the elements of `comparisons` should omit the last colon, e.g.,
 #'   `geneA:/geneA:control`.
+#' @param between \[`logical(1L)`]\cr Should comparisons between different
+#'   genes be carried out for pairwise methods? The default is `FALSE`.
 #' @param ref_genes \[`character()`]\cr A vector of column names of `data`
 #'   which should be treated as reference genes when `norm == "reference"`.
 #'   This is argument is ignored for the `"normagene"` and `"none"`
 #'   normalization options.
-#' @param eff \[`data.frame` or `list`]\cr Efficiencies when using the
+#' @param eff \[`data.frame` or `list`]\cr Efficiency values when using the
 #'   reference gene normalization. Should be either a `data.frame` with a
 #'   column for each gene and a single row providing the efficiency values.
 #'   Alternatively, a named `list` or a `vector` giving the efficiency values
 #'   can be provided.
 #' @param eff_adjust \[`character(1)`]\cr How should efficiencies above 1 be
 #'   adjusted? The default `"none"` uses the efficiencies as is. Option
-#'   `"limit"` caps efficiencies to a maximum of 1. Option `"scale"` adjust all
+#'   `"limit"` caps efficiencies to 1. Option `"scale"` adjust all
 #'   efficiency values such that the highest is 1.
 #' @param m \[`integer(1)`]\cr Number of replications to use for the
 #'   randomization test. The default is `10000` replications.
@@ -71,7 +73,8 @@ qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
                    "randomization_test", "t_test", "wilcoxon_test",
                    "anova", "kruskal_test"
                   ),
-                 comparisons = NULL, ref_genes = NULL, eff = NULL,
+                 comparisons = NULL, between = FALSE,
+                 ref_genes = NULL, eff = NULL,
                  eff_adjust = c("none", "limit", "scale"),
                  m = 10000L, alpha = 0.95) {
   stopifnot_(
@@ -108,6 +111,10 @@ qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
     "Argument {.arg methods} must contain one or more of the following:
     {.val {all_methods}}"
   )
+  stopifnot_(
+    checkmate::test_flag(x = between),
+    "Argument {.arg between} must be a single {.cls logical} value."
+  )
   eff_adjust <- try(
     match.arg(eff_adjust, c("none", "limit", "scale")),
     silent = TRUE
@@ -129,25 +136,43 @@ qpcr <- function(data, group, norm = c("normagene", "reference", "none"),
   ref_genes <- onlyif(identical(norm, "reference"), ref_genes)
   data <- parse_data(data, group, norm, ref_genes, eff, eff_adjust)
   comparisons <- parse_comparisons(data, group, ref_genes, comparisons)
-  qpcr_(data, group, norm, methods, comparisons, ref_genes, m, alpha)
+  qpcr_(data, group, norm, methods, comparisons, between, ref_genes, m, alpha)
 }
 
 #' qPCR Analysis
 #'
 #' @inheritParams qpcr
 #' @noRd
-qpcr_ <- function(data, group, norm,
-                  methods, comparisons, ref_genes, m, alpha) {
+qpcr_ <- function(data, group, norm, methods,
+                  comparisons, between, ref_genes, m, alpha) {
   local <- NULL
   global <- NULL
-  args <- as.list(match.call()[-1L])
-  if (any(local_methods  %in% methods)) {
-    local <- do.call("local_tests", args)
+  boot <- NULL
+  tmp <- local_tests(
+    data,
+    group,
+    norm,
+    methods,
+    comparisons,
+    between,
+    ref_genes,
+    m,
+    alpha
+  )
+  if (any(local_methods %in% methods)) {
+    local <- tmp$local
   }
-  #if (any(global_methods %in% methods)) {
-  #  global <- do.call("global_tests", args)
-  #}
-  plots <- NULL
+  if (any(global_methods %in% methods)) {
+    global <- global_tests(
+      data,
+      group,
+      norm,
+      methods,
+      ref_genes,
+      alpha
+    )
+  }
   #plots <- fold_change_plots(data, ref_genes)
+  plots <- fold_change_plots(tmp$pairs, tmp$boot)
   list(local = local, global = global, plots = plots)
 }
